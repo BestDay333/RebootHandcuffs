@@ -1,34 +1,49 @@
 ```
-# Compiled Java classes
+# Compiled and build artifacts
+*.jar
 *.class
-
-# Maven/Gradle build directories
-target/
-build/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
 
 # Dependencies
 lib/
 libs/
+target/
+build/
 
-# IDE files
-.idea/
-*.iml
-*.ipr
-*.iws
-
-# Logs
+# Logs and temp files
 *.log
+*.tmp
+*.swp
 
 # Environment
 .env
 .env.local
 *.env.*
 
-# OS generated files
+# Editors
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# OS specific
 .DS_Store
 Thumbs.db
 
-# Backup files
-*.bak
-*.backup
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Package manager
+node_modules/
+__pycache__/
+*.egg-info/
 ```
