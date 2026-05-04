@@ -57,11 +57,16 @@ public class CuffTask extends BukkitRunnable {
                 // Strong pull strength for better effect
                 direction.multiply(pullStrength * 3.0);
 
-                // Get victim's current velocity and preserve Y for gravity/jumping
+                // Get victim's current velocity
                 Vector currentVelocity = victim.getVelocity();
                 
-                // Apply horizontal pull while preserving vertical movement
-                Vector newVelocity = new Vector(direction.getX(), currentVelocity.getY(), direction.getZ());
+                // Match judge's Y movement (flying/swimming) - victim should follow judge vertically too
+                double targetY = judgeLoc.getY();
+                double victimY = victimLoc.getY();
+                double yDifference = targetY - victimY;
+                
+                // Apply horizontal pull and vertical following
+                Vector newVelocity = new Vector(direction.getX(), yDifference * 0.3, direction.getZ());
                 victim.setVelocity(newVelocity);
                 
                 // Teleport assist if pull is not effective enough (distance still large)
@@ -80,10 +85,44 @@ public class CuffTask extends BukkitRunnable {
                     victim.teleport(targetLoc);
                 }
             } else {
-                // Within range - zero out X/Z velocity but preserve Y for gravity
-                Vector currentVelocity = victim.getVelocity();
-                victim.setVelocity(new Vector(0, currentVelocity.getY(), 0));
+                // Within range - match judge's Y position gradually (for flying)
+                double yDifference = judgeLoc.getY() - victimLoc.getY();
+                if (Math.abs(yDifference) > 0.5) {
+                    Vector currentVelocity = victim.getVelocity();
+                    victim.setVelocity(new Vector(0, yDifference * 0.2, 0));
+                } else {
+                    // Close enough - zero out X/Z velocity but preserve Y for gravity
+                    Vector currentVelocity = victim.getVelocity();
+                    victim.setVelocity(new Vector(0, currentVelocity.getY(), 0));
+                }
             }
+            
+            // Spawn visible leash particles between judge and victim
+            spawnLeashParticles(judge, victim);
+        }
+    }
+    
+    private void spawnLeashParticles(Player judge, Player victim) {
+        Location judgeLoc = judge.getLocation();
+        Location victimLoc = victim.getLocation();
+        
+        // Get eye locations for better visual
+        Location judgeEye = judgeLoc.clone().add(0, judge.getEyeHeight(), 0);
+        Location victimEye = victimLoc.clone().add(0, victim.getEyeHeight(), 0);
+        
+        // Calculate number of particles based on distance
+        double distance = judgeEye.distance(victimEye);
+        int particleCount = (int) (distance * 2); // 2 particles per block
+        
+        // Spawn particles along the line between judge and victim
+        for (int i = 0; i <= particleCount; i++) {
+            double t = (double) i / particleCount;
+            double x = judgeEye.getX() + (victimEye.getX() - judgeEye.getX()) * t;
+            double y = judgeEye.getY() + (victimEye.getY() - judgeEye.getY()) * t;
+            double z = judgeEye.getZ() + (victimEye.getZ() - judgeEye.getZ()) * t;
+            
+            Location particleLoc = new Location(judge.getWorld(), x, y, z);
+            judge.spawnParticle(org.bukkit.Particle.END_ROD, particleLoc, 1, 0, 0, 0, 0);
         }
     }
 }

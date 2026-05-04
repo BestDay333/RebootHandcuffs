@@ -1,30 +1,25 @@
 ```
-# Compiled Java classes
-*.class
-
-# JAR files
+# Compiled and build artifacts
 *.jar
+*.class
+*.o
+*.obj
 
 # Dependencies
 lib/
 libs/
 
-# Build artifacts
-target/
-build/
-dist/
-
-# IDE files
-.idea/
-.vscode/
-*.iml
-*.ipr
-*.iws
-
-# Logs
+# Logs and temp files
 *.log
-
-# Temporary files
 *.tmp
-*.temp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
 ```
