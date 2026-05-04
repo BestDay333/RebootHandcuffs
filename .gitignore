@@ -4,14 +4,17 @@
 *.o
 *.obj
 *.out
+build/
 target/
 
 # Dependencies
-lib/
-!lib/**
-# Maven-specific
-target/
-**/maven-status/
+node_modules/
+venv/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.gradle/
 
 # Logs and temp files
 *.log
@@ -26,10 +29,8 @@ target/
 # Editors
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# OS specific
+# System files
 .DS_Store
 Thumbs.db
 
@@ -37,42 +38,6 @@ Thumbs.db
 coverage/
 htmlcov/
 .coverage
-
-# Package managers
-node_modules/
-**/node_modules/
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.nox/
-.coverage.*
-.cache
-.pytest_cache/
-.mypy_cache/
-.hypothesis/
-
-# Java
-*.class
-*.jar
-*.war
-*.ear
-*.nar
-hs_err_pid*
-
-# Gradle
-.gradle/
-build/
 
 # Compressed files
 *.zip
