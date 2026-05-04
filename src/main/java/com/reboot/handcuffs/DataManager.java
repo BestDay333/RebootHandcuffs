@@ -81,7 +81,15 @@ public class DataManager {
         FileConfiguration config = new YamlConfiguration();
 
         for (Map.Entry<UUID, UUID> entry : handcuffedPlayers.entrySet()) {
-            config.set(entry.getKey().toString(), entry.getValue().toString());
+            String victimKey = entry.getKey().toString();
+            config.set(victimKey + ".judge", entry.getValue().toString());
+            
+            // Save hand items
+            ItemStack[] hands = savedHands.get(entry.getKey());
+            if (hands != null) {
+                config.set(victimKey + ".mainHand", hands[0]);
+                config.set(victimKey + ".offHand", hands[1]);
+            }
         }
 
         try {
@@ -101,8 +109,28 @@ public class DataManager {
         for (String key : handcuffsConfig.getKeys(false)) {
             try {
                 UUID victimUuid = UUID.fromString(key);
-                UUID judgeUuid = UUID.fromString(handcuffsConfig.getString(key));
-                handcuffedPlayers.put(victimUuid, judgeUuid);
+                
+                // Load judge UUID
+                String judgePath = key + ".judge";
+                String judgeStr = handcuffsConfig.getString(judgePath);
+                if (judgeStr == null) {
+                    // Old format compatibility
+                    judgeStr = handcuffsConfig.getString(key);
+                }
+                
+                if (judgeStr != null) {
+                    UUID judgeUuid = UUID.fromString(judgeStr);
+                    handcuffedPlayers.put(victimUuid, judgeUuid);
+                    
+                    // Load hand items
+                    ItemStack mainHand = handcuffsConfig.getItemStack(key + ".mainHand");
+                    ItemStack offHand = handcuffsConfig.getItemStack(key + ".offHand");
+                    
+                    ItemStack[] hands = new ItemStack[2];
+                    hands[0] = mainHand;
+                    hands[1] = offHand;
+                    savedHands.put(victimUuid, hands);
+                }
             } catch (IllegalArgumentException e) {
                 plugin.getLogger().warning("Invalid UUID in handcuffs.yml: " + key);
             }
