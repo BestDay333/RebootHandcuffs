@@ -1,49 +1,29 @@
 ```
-# Compiled and build artifacts
-*.jar
+# Compiled Java classes
 *.class
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
+
+# JAR files
+*.jar
 
 # Dependencies
 lib/
 libs/
-target/
-build/
 
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Editors
-.vscode/
+# IDE files
 .idea/
 *.iml
 *.ipr
 *.iws
 
-# OS specific
-.DS_Store
-Thumbs.db
+# Build artifacts
+target/
+build/
+dist/
 
-# Coverage
-coverage/
-htmlcov/
-.coverage
+# Logs
+*.log
 
-# Package manager
-node_modules/
-__pycache__/
-*.egg-info/
+# Temporary files
+*.tmp
+*.temp
 ```

@@ -54,13 +54,21 @@ public class CuffTask extends BukkitRunnable {
                 // Calculate direction vector to judge
                 Vector direction = judgeLoc.toVector().subtract(victimLoc.toVector());
                 direction.normalize();
-                direction.multiply(pullStrength);
+                // Increased pull strength for better effect
+                direction.multiply(pullStrength * 2.5);
 
-                // Preserve Y velocity for jumping/falling
+                // Preserve Y velocity for jumping/falling, but limit vertical pull
                 Vector currentVelocity = victim.getVelocity();
-                direction.setY(currentVelocity.getY());
+                direction.setY(Math.max(-0.5, Math.min(0.5, currentVelocity.getY())));
 
                 victim.setVelocity(direction);
+                
+                // Additional teleport assist if pull is not effective
+                if (distance > maxDistance * 3) {
+                    Location newLoc = victimLoc.clone();
+                    newLoc.add(direction.clone().multiply(0.8));
+                    victim.teleport(newLoc);
+                }
             } else {
                 // Within range - zero out X/Z velocity
                 Vector currentVelocity = victim.getVelocity();

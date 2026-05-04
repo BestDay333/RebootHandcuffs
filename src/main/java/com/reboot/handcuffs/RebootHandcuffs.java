@@ -1,9 +1,17 @@
 package com.reboot.handcuffs;
 
 import org.bukkit.Bukkit;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public class RebootHandcuffs extends JavaPlugin {
+import java.util.ArrayList;
+import java.util.List;
+
+public class RebootHandcuffs extends JavaPlugin implements CommandExecutor, TabCompleter {
 
     private DataManager dataManager;
     private PlayerListener playerListener;
@@ -20,6 +28,10 @@ public class RebootHandcuffs extends JavaPlugin {
         // Register listener
         playerListener = new PlayerListener(this, dataManager);
         Bukkit.getPluginManager().registerEvents(playerListener, this);
+
+        // Register command
+        getCommand("uncuff").setExecutor(this);
+        getCommand("uncuff").setTabCompleter(this);
 
         // Start pull task (every 1 tick)
         cuffTask = new CuffTask(this, dataManager);
@@ -41,6 +53,56 @@ public class RebootHandcuffs extends JavaPlugin {
         }
 
         getLogger().info("RebootHandcuffs disabled!");
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!command.getName().equalsIgnoreCase("uncuff")) {
+            return false;
+        }
+
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cЭту команду может использовать только игрок!");
+            return true;
+        }
+
+        if (!player.isOp() && !player.hasPermission("reboot.admin")) {
+            player.sendMessage("§cУ вас нет прав на использование этой команды!");
+            return true;
+        }
+
+        if (args.length < 1) {
+            player.sendMessage("§cИспользование: /uncuff <игрок>");
+            return true;
+        }
+
+        Player target = Bukkit.getPlayer(args[0]);
+        if (target == null) {
+            player.sendMessage("§cИгрок не найден или оффлайн!");
+            return true;
+        }
+
+        if (!dataManager.isHandcuffed(target)) {
+            player.sendMessage("§cИгрок не закован в наручники!");
+            return true;
+        }
+
+        dataManager.unhandcuffByAdmin(target, player);
+        return true;
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length == 1) {
+            List<String> completions = new ArrayList<>();
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                if (dataManager.isHandcuffed(player)) {
+                    completions.add(player.getName());
+                }
+            }
+            return completions;
+        }
+        return new ArrayList<>();
     }
 
     public DataManager getDataManager() {
