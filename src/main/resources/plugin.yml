@@ -1,0 +1,9 @@
+name: RebootHandcuffs
+version: 1.0
+main: com.reboot.handcuffs.RebootHandcuffs
+api-version: '1.21'
+author: BestDay_
+permissions:
+  reboot.judge:
+    description: Permission to use handcuffs
+    default: op
