@@ -31,12 +31,12 @@ public class PlayerListener implements Listener {
     }
 
     @EventHandler
-    public void onPlayerInteract(PlayerInteractEvent event) {
+    public void onPlayerInteract(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
 
         // Check if using lead with "Наручники" name
-        ItemStack item = event.getItem();
-        if (item == null || item.getType() != Material.LEAD) {
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (item.getType() != Material.LEAD) {
             return;
         }
 
@@ -56,7 +56,7 @@ public class PlayerListener implements Listener {
         }
 
         // Check if right-clicking on entity
-        Entity clickedEntity = event.getClickedEntity();
+        Entity clickedEntity = event.getRightClicked();
         if (!(clickedEntity instanceof Player target)) {
             return;
         }
