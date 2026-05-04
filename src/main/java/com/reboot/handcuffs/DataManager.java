@@ -49,12 +49,17 @@ public class DataManager {
     }
 
     public void handcuff(Player victim, Player judge) {
+        // Check if already handcuffed to prevent double-toggling
+        if (handcuffedPlayers.containsKey(victim.getUniqueId())) {
+            return;
+        }
+
         handcuffedPlayers.put(victim.getUniqueId(), judge.getUniqueId());
 
         // Save current hand items
         ItemStack[] hands = new ItemStack[2];
-        hands[0] = victim.getInventory().getItemInMainHand();
-        hands[1] = victim.getInventory().getItemInOffHand();
+        hands[0] = victim.getInventory().getItemInMainHand().clone();
+        hands[1] = victim.getInventory().getItemInOffHand().clone();
         savedHands.put(victim.getUniqueId(), hands);
 
         // Clear hands
@@ -70,8 +75,12 @@ public class DataManager {
         // Restore hand items
         ItemStack[] hands = savedHands.remove(victim.getUniqueId());
         if (hands != null) {
-            victim.getInventory().setItemInMainHand(hands[0]);
-            victim.getInventory().setItemInOffHand(hands[1]);
+            if (hands[0] != null) {
+                victim.getInventory().setItemInMainHand(hands[0]);
+            }
+            if (hands[1] != null) {
+                victim.getInventory().setItemInOffHand(hands[1]);
+            }
         }
 
         saveHandcuffsData();

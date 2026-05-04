@@ -32,6 +32,11 @@ public class PlayerListener implements Listener {
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEntityEvent event) {
+        // Check if event is already cancelled
+        if (event.isCancelled()) {
+            return;
+        }
+
         Player player = event.getPlayer();
 
         // Check if using lead with "Наручники" name
@@ -61,14 +66,17 @@ public class PlayerListener implements Listener {
             return;
         }
 
+        // Prevent default lead interaction
         event.setCancelled(true);
 
+        // Check current state and perform action
         if (dataManager.isHandcuffed(target)) {
             // Unhandcuff
             dataManager.unhandcuff(target);
             String msg = plugin.getConfig().getString("msg-uncuff", "&aНаручники сняты");
-            target.sendActionBar(serializer.deserialize(msg));
-            player.sendActionBar(serializer.deserialize(msg));
+            Component component = serializer.deserialize(msg);
+            target.sendActionBar(component);
+            player.sendActionBar(component);
         } else {
             // Handcuff
             dataManager.handcuff(target, player);
