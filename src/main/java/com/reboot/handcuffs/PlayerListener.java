@@ -79,13 +79,18 @@ public class PlayerListener implements Listener {
             player.sendActionBar(component);
             plugin.getLogger().info("Unhandcuffed " + target.getName() + " by " + player.getName());
         } else {
-            // Handcuff
-            dataManager.handcuff(target, player);
-            String cuffMsg = plugin.getConfig().getString("msg-cuff", "&c✖ ВЫ СВЯЗАНЫ ✖");
-            String successMsg = plugin.getConfig().getString("msg-judge-success", "&aИгрок закован");
-            target.sendActionBar(serializer.deserialize(cuffMsg));
-            player.sendActionBar(serializer.deserialize(successMsg));
-            plugin.getLogger().info("Handcuffed " + target.getName() + " by " + player.getName());
+            // Handcuff - add a small delay to prevent double-triggering
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                // Double-check if still not handcuffed (in case of race condition)
+                if (!dataManager.isHandcuffed(target)) {
+                    dataManager.handcuff(target, player);
+                    String cuffMsg = plugin.getConfig().getString("msg-cuff", "&c✖ ВЫ СВЯЗАНЫ ✖");
+                    String successMsg = plugin.getConfig().getString("msg-judge-success", "&aИгрок закован");
+                    target.sendActionBar(serializer.deserialize(cuffMsg));
+                    player.sendActionBar(serializer.deserialize(successMsg));
+                    plugin.getLogger().info("Handcuffed " + target.getName() + " by " + player.getName());
+                }
+            }, 1L);
         }
     }
 
