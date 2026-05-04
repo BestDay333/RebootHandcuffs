@@ -72,30 +72,25 @@ public class PlayerListener implements Listener {
         // Prevent default lead interaction
         event.setCancelled(true);
 
-        // Check current state and perform action
+        // Only handcuff, do not unhandcuff via right-click
         if (dataManager.isHandcuffed(target)) {
-            // Unhandcuff - only if the clicking player has permission
-            dataManager.unhandcuff(target);
-            String msg = plugin.getConfig().getString("msg-uncuff", "&aНаручники сняты");
-            Component component = serializer.deserialize(msg);
-            target.sendActionBar(component);
-            player.sendActionBar(component);
-            plugin.getLogger().info("Unhandcuffed " + target.getName() + " by " + player.getName());
-        } else {
-            // Handcuff - add a delay to prevent double-triggering and ensure server state is consistent
-            // Store a temporary flag to prevent immediate unhandcuffing
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                // Double-check if still not handcuffed (in case of race condition)
-                if (!dataManager.isHandcuffed(target)) {
-                    dataManager.handcuff(target, player);
-                    String cuffMsg = plugin.getConfig().getString("msg-cuff", "&c✖ ВЫ СВЯЗАНЫ ✖");
-                    String successMsg = plugin.getConfig().getString("msg-judge-success", "&aИгрок закован");
-                    target.sendActionBar(serializer.deserialize(cuffMsg));
-                    player.sendActionBar(serializer.deserialize(successMsg));
-                    plugin.getLogger().info("Handcuffed " + target.getName() + " by " + player.getName());
-                }
-            }, 15L); // 15 ticks delay (0.75 seconds)
+            // Already handcuffed - do nothing, inform player
+            player.sendMessage("§cЭтот игрок уже закован в наручники!");
+            return;
         }
+
+        // Handcuff - add a delay to prevent double-triggering and ensure server state is consistent
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            // Double-check if still not handcuffed (in case of race condition)
+            if (!dataManager.isHandcuffed(target)) {
+                dataManager.handcuff(target, player);
+                String cuffMsg = plugin.getConfig().getString("msg-cuff", "&c✖ ВЫ СВЯЗАНЫ ✖");
+                String successMsg = plugin.getConfig().getString("msg-judge-success", "&aИгрок закован");
+                target.sendActionBar(serializer.deserialize(cuffMsg));
+                player.sendActionBar(serializer.deserialize(successMsg));
+                plugin.getLogger().info("Handcuffed " + target.getName() + " by " + player.getName());
+            }
+        }, 15L); // 15 ticks delay (0.75 seconds)
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
