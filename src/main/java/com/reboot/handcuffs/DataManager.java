@@ -51,26 +51,36 @@ public class DataManager {
     public void handcuff(Player victim, Player judge) {
         // Check if already handcuffed to prevent double-toggling
         if (handcuffedPlayers.containsKey(victim.getUniqueId())) {
+            plugin.getLogger().warning("Attempted to handcuff already handcuffed player: " + victim.getName());
             return;
         }
 
         handcuffedPlayers.put(victim.getUniqueId(), judge.getUniqueId());
 
         // Save current hand items
+        ItemStack mainHand = victim.getInventory().getItemInMainHand();
+        ItemStack offHand = victim.getInventory().getItemInOffHand();
+        
         ItemStack[] hands = new ItemStack[2];
-        hands[0] = victim.getInventory().getItemInMainHand().clone();
-        hands[1] = victim.getInventory().getItemInOffHand().clone();
+        hands[0] = mainHand != null ? mainHand.clone() : null;
+        hands[1] = offHand != null ? offHand.clone() : null;
         savedHands.put(victim.getUniqueId(), hands);
 
         // Clear hands
         victim.getInventory().setItemInMainHand(null);
         victim.getInventory().setItemInOffHand(null);
 
+        plugin.getLogger().info("Player " + victim.getName() + " handcuffed by " + judge.getName());
         saveHandcuffsData();
     }
 
     public void unhandcuff(Player victim) {
         UUID judgeUuid = handcuffedPlayers.remove(victim.getUniqueId());
+        
+        if (judgeUuid == null) {
+            plugin.getLogger().warning("Attempted to unhandcuff player not in list: " + victim.getName());
+            return;
+        }
 
         // Restore hand items
         ItemStack[] hands = savedHands.remove(victim.getUniqueId());
@@ -81,8 +91,11 @@ public class DataManager {
             if (hands[1] != null) {
                 victim.getInventory().setItemInOffHand(hands[1]);
             }
+        } else {
+            plugin.getLogger().warning("No saved hand items for player: " + victim.getName());
         }
 
+        plugin.getLogger().info("Player " + victim.getName() + " unhandcuffed");
         saveHandcuffsData();
     }
 

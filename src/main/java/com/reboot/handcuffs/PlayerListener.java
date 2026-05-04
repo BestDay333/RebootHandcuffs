@@ -71,12 +71,13 @@ public class PlayerListener implements Listener {
 
         // Check current state and perform action
         if (dataManager.isHandcuffed(target)) {
-            // Unhandcuff
+            // Unhandcuff - only if the clicking player has permission
             dataManager.unhandcuff(target);
             String msg = plugin.getConfig().getString("msg-uncuff", "&aНаручники сняты");
             Component component = serializer.deserialize(msg);
             target.sendActionBar(component);
             player.sendActionBar(component);
+            plugin.getLogger().info("Unhandcuffed " + target.getName() + " by " + player.getName());
         } else {
             // Handcuff
             dataManager.handcuff(target, player);
@@ -84,6 +85,7 @@ public class PlayerListener implements Listener {
             String successMsg = plugin.getConfig().getString("msg-judge-success", "&aИгрок закован");
             target.sendActionBar(serializer.deserialize(cuffMsg));
             player.sendActionBar(serializer.deserialize(successMsg));
+            plugin.getLogger().info("Handcuffed " + target.getName() + " by " + player.getName());
         }
     }
 
