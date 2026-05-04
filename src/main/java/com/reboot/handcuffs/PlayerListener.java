@@ -79,7 +79,7 @@ public class PlayerListener implements Listener {
             player.sendActionBar(component);
             plugin.getLogger().info("Unhandcuffed " + target.getName() + " by " + player.getName());
         } else {
-            // Handcuff - add a small delay to prevent double-triggering
+            // Handcuff - add a delay to prevent double-triggering and ensure server state is consistent
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 // Double-check if still not handcuffed (in case of race condition)
                 if (!dataManager.isHandcuffed(target)) {
@@ -90,7 +90,7 @@ public class PlayerListener implements Listener {
                     player.sendActionBar(serializer.deserialize(successMsg));
                     plugin.getLogger().info("Handcuffed " + target.getName() + " by " + player.getName());
                 }
-            }, 1L);
+            }, 15L); // 15 ticks delay (0.75 seconds)
         }
     }
 

@@ -99,6 +99,31 @@ public class DataManager {
         saveHandcuffsData();
     }
 
+    public void unhandcuffByAdmin(Player victim, Player admin) {
+        UUID judgeUuid = handcuffedPlayers.remove(victim.getUniqueId());
+        
+        if (judgeUuid == null) {
+            admin.sendMessage("§cИгрок не закован в наручники!");
+            return;
+        }
+
+        // Restore hand items
+        ItemStack[] hands = savedHands.remove(victim.getUniqueId());
+        if (hands != null) {
+            if (hands[0] != null) {
+                victim.getInventory().setItemInMainHand(hands[0]);
+            }
+            if (hands[1] != null) {
+                victim.getInventory().setItemInOffHand(hands[1]);
+            }
+        }
+
+        plugin.getLogger().info("Player " + victim.getName() + " unhandcuffed by admin " + admin.getName());
+        saveHandcuffsData();
+        admin.sendMessage("§aНаручники сняты с игрока " + victim.getName());
+        victim.sendMessage("§aАдминистратор снял с вас наручники");
+    }
+
     public void saveHandcuffsData() {
         FileConfiguration config = new YamlConfiguration();
 

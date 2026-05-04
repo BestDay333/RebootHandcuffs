@@ -3,7 +3,17 @@ version: 1.0
 main: com.reboot.handcuffs.RebootHandcuffs
 api-version: '1.21'
 author: BestDay_
+
+commands:
+  uncuff:
+    description: Admin command to remove handcuffs from a player
+    usage: /uncuff <player>
+    permission: reboot.admin
+
 permissions:
   reboot.judge:
     description: Permission to use handcuffs
+    default: op
+  reboot.admin:
+    description: Permission to use admin commands
     default: op
