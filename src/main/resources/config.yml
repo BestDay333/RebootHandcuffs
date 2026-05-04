@@ -1,0 +1,22 @@
+# RebootHandcuffs Configuration
+# Author: BestDay_
+
+# Permission mode: "op" for operators only, or a permission string like "reboot.judge"
+permission: "op"
+
+# Messages (using MiniMessage format or legacy color codes)
+msg-cuff: "&c✖ ВЫ СВЯЗАНЫ ✖"
+msg-uncuff: "&aНаручники сняты"
+msg-judge-success: "&aИгрок закован"
+msg-still-cuffed: "&c✖ ВЫ ВСЕ ЕЩЕ СВЯЗАНЫ ✖"
+
+# Physics settings
+max-distance: 1.5
+pull-strength: 0.4
+
+# Restrictions
+restrictions:
+  allow-break: false
+  allow-place: false
+  allow-attack: false
+  allow-damage: false
