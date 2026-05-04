@@ -2,6 +2,7 @@ package com.reboot.handcuffs;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Entity;
@@ -17,6 +18,8 @@ import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+
+import java.util.UUID;
 
 public class PlayerListener implements Listener {
 
@@ -80,6 +83,7 @@ public class PlayerListener implements Listener {
             plugin.getLogger().info("Unhandcuffed " + target.getName() + " by " + player.getName());
         } else {
             // Handcuff - add a delay to prevent double-triggering and ensure server state is consistent
+            // Store a temporary flag to prevent immediate unhandcuffing
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 // Double-check if still not handcuffed (in case of race condition)
                 if (!dataManager.isHandcuffed(target)) {
@@ -102,7 +106,39 @@ public class PlayerListener implements Listener {
             return;
         }
 
-        // Only allow head rotation (yaw/pitch), block position changes
+        // Check if judge is online - if yes, allow pulling by CuffTask
+        UUID judgeUuid = dataManager.getJudge(player);
+        Player judge = Bukkit.getPlayer(judgeUuid);
+        
+        // Only block movement if judge is offline (player should stay in place)
+        // If judge is online, CuffTask will handle the pulling
+        if (judge != null) {
+            // Judge is online - allow movement (CuffTask will pull the player)
+            // Just cancel natural movement but allow velocity-based movement
+            Location from = event.getFrom();
+            Location to = event.getTo();
+
+            if (to == null) {
+                return;
+            }
+
+            // Check if movement is due to player's own input (not velocity)
+            // Allow small movements caused by physics/velocity
+            double dx = Math.abs(to.getX() - from.getX());
+            double dz = Math.abs(to.getZ() - from.getZ());
+            double dy = Math.abs(to.getY() - from.getY());
+            
+            // Allow tiny movements (less than 0.1 blocks) which might be from velocity
+            if (dx < 0.1 && dz < 0.1 && dy < 0.1) {
+                return;
+            }
+            
+            // Block intentional movement but allow head rotation
+            event.setTo(from);
+            return;
+        }
+
+        // Judge is offline - block all movement completely
         Location from = event.getFrom();
         Location to = event.getTo();
 

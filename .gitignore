@@ -9,16 +9,17 @@
 lib/
 libs/
 
-# IDE files
-.idea/
-*.iml
-*.ipr
-*.iws
-
 # Build artifacts
 target/
 build/
 dist/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
 
 # Logs
 *.log

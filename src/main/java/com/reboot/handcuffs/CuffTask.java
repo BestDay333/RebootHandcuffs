@@ -54,23 +54,33 @@ public class CuffTask extends BukkitRunnable {
                 // Calculate direction vector to judge
                 Vector direction = judgeLoc.toVector().subtract(victimLoc.toVector());
                 direction.normalize();
-                // Increased pull strength for better effect
-                direction.multiply(pullStrength * 2.5);
+                // Strong pull strength for better effect
+                direction.multiply(pullStrength * 3.0);
 
-                // Preserve Y velocity for jumping/falling, but limit vertical pull
+                // Get victim's current velocity and preserve Y for gravity/jumping
                 Vector currentVelocity = victim.getVelocity();
-                direction.setY(Math.max(-0.5, Math.min(0.5, currentVelocity.getY())));
-
-                victim.setVelocity(direction);
                 
-                // Additional teleport assist if pull is not effective
-                if (distance > maxDistance * 3) {
-                    Location newLoc = victimLoc.clone();
-                    newLoc.add(direction.clone().multiply(0.8));
-                    victim.teleport(newLoc);
+                // Apply horizontal pull while preserving vertical movement
+                Vector newVelocity = new Vector(direction.getX(), currentVelocity.getY(), direction.getZ());
+                victim.setVelocity(newVelocity);
+                
+                // Teleport assist if pull is not effective enough (distance still large)
+                if (distance > maxDistance * 2.5) {
+                    // Calculate target position closer to judge
+                    Location targetLoc = judgeLoc.clone();
+                    // Move target location slightly towards victim to avoid overlapping
+                    Vector judgeToVictim = victimLoc.toVector().subtract(judgeLoc.toVector()).normalize().multiply(maxDistance);
+                    targetLoc.add(judgeToVictim);
+                    
+                    // Keep victim's yaw/pitch
+                    targetLoc.setYaw(victimLoc.getYaw());
+                    targetLoc.setPitch(victimLoc.getPitch());
+                    
+                    // Teleport victim closer to judge
+                    victim.teleport(targetLoc);
                 }
             } else {
-                // Within range - zero out X/Z velocity
+                // Within range - zero out X/Z velocity but preserve Y for gravity
                 Vector currentVelocity = victim.getVelocity();
                 victim.setVelocity(new Vector(0, currentVelocity.getY(), 0));
             }
