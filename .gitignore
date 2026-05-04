@@ -1,35 +1,15 @@
 ```
 # Compiled and build artifacts
 *.jar
-*.class
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
+target/
 
 # Dependencies
 lib/
 libs/
-dependency/
-dependencies/
-
-# Build tools
-target/
-build/
-dist/
-out/
-
-# Java specific
-*.class
-!src/main/java/com/reboot/handcuffs/DataManager.java
 
 # Logs and temp files
 *.log
 *.tmp
-*.swp
 
 # Environment
 .env
@@ -39,22 +19,8 @@ out/
 # Editors
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# System files
+# OS files
 .DS_Store
 Thumbs.db
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Python cache (if any Python files exist)
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
 ```
