@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.entity.Player;
@@ -49,8 +50,7 @@ public class CuffTask extends BukkitRunnable {
 
             double distance = victimLoc.distance(judgeLoc);
             double maxDistance = plugin.getConfig().getDouble("max-distance", 1.5);
-            double pullStrength = plugin.getConfig().getDouble("pull-strength", 0.4);
-
+            
             // Draw visible leash particles between victim and judge
             drawLeashParticles(victimLoc, judgeLoc);
 
@@ -58,28 +58,24 @@ public class CuffTask extends BukkitRunnable {
                 // Calculate direction vector to judge
                 Vector direction = judgeLoc.toVector().subtract(victimLoc.toVector());
                 direction.normalize();
-                // Increased pull strength for better effect
-                direction.multiply(pullStrength * 2.5);
-
-                // Player follows the judge in the air like on a leash
-                // No Y restriction - victim flies with judge
-                // Anti-kick: set velocity smoothly, no teleport spam
-
-                victim.setVelocity(direction);
                 
-                // Additional teleport assist only if pull is not effective (very far)
-                if (distance > maxDistance * 4) {
-                    Location newLoc = victimLoc.clone();
-                    newLoc.add(direction.clone().multiply(0.8));
-                    // Match judge's Y level for flying
-                    newLoc.setY(judgeLoc.getY() + (victimLoc.getY() - judgeLoc.getY()) * 0.3);
-                    victim.teleport(newLoc);
-                }
+                // Calculate target location - follow judge at maxDistance
+                Location targetLoc = judgeLoc.clone().subtract(direction.clone().multiply(maxDistance));
+                
+                // Set victim's Y to match judge's Y for smooth following (like a leash)
+                targetLoc.setY(judgeLoc.getY());
+                
+                // Smooth teleport with small delay to avoid anti-cheat triggers
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    victim.teleport(targetLoc);
+                    victim.setFallDistance(0);
+                });
             } else {
-                // Within range - smooth velocity adjustment, allow flying
-                Vector currentVelocity = victim.getVelocity();
-                Vector targetVelocity = judge.getVelocity().clone().multiply(0.8);
-                victim.setVelocity(targetVelocity);
+                // Within range - sync movement smoothly
+                // Match judge's velocity for natural leash feel
+                Vector judgeVel = judge.getVelocity();
+                victim.setVelocity(judgeVel.clone().multiply(0.8));
+                victim.setFallDistance(0);
             }
         }
     }

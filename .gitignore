@@ -1,3 +1,27 @@
-```java
+```
+# Compiled and build artifacts
+*.class
+*.jar
+target/
 
+# Dependencies
+.m2/
+.gradle/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
 ```
