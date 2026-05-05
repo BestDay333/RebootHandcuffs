@@ -57,24 +57,35 @@ public class CuffTask extends BukkitRunnable {
             if (distance > maxDistance) {
                 // Calculate direction vector to judge
                 Vector direction = judgeLoc.toVector().subtract(victimLoc.toVector());
-                direction.normalize();
+                double dist = direction.length();
                 
-                // Calculate target location - follow judge at maxDistance
-                Location targetLoc = judgeLoc.clone().subtract(direction.clone().multiply(maxDistance));
-                
-                // Set victim's Y to match judge's Y for smooth following (like a leash)
-                targetLoc.setY(judgeLoc.getY());
-                
-                // Smooth teleport with small delay to avoid anti-cheat triggers
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    victim.teleport(targetLoc);
+                if (dist > 0) {
+                    direction.normalize();
+                    
+                    // Calculate pull strength - stronger when farther, softer when closer
+                    double pullStrength = Math.min((dist - maxDistance) * 0.15, 0.8);
+                    
+                    // Create velocity towards judge with smooth interpolation
+                    Vector pullVelocity = direction.clone().multiply(pullStrength);
+                    
+                    // Add vertical component to follow judge's height smoothly
+                    double heightDiff = judgeLoc.getY() - victimLoc.getY();
+                    if (Math.abs(heightDiff) > 0.5) {
+                        pullVelocity.setY(heightDiff * 0.12);
+                    } else {
+                        pullVelocity.setY(0);
+                    }
+                    
+                    // Apply velocity - this feels like being pulled by a leash
+                    victim.setVelocity(pullVelocity);
                     victim.setFallDistance(0);
-                });
+                }
             } else {
-                // Within range - sync movement smoothly
-                // Match judge's velocity for natural leash feel
+                // Within range - match judge's movement smoothly
                 Vector judgeVel = judge.getVelocity();
-                victim.setVelocity(judgeVel.clone().multiply(0.8));
+                
+                // Apply a portion of judge's velocity for natural leash feel
+                victim.setVelocity(judgeVel.clone().multiply(0.7));
                 victim.setFallDistance(0);
             }
         }
