@@ -1,5 +1,6 @@
 package com.reboot.handcuffs;
 
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -32,6 +33,8 @@ public class RebootHandcuffs extends JavaPlugin implements CommandExecutor, TabC
         // Register command
         getCommand("uncuff").setExecutor(this);
         getCommand("uncuff").setTabCompleter(this);
+        getCommand("cuff").setExecutor(this);
+        getCommand("cuff").setTabCompleter(this);
 
         // Start pull task (every 1 tick)
         cuffTask = new CuffTask(this, dataManager);
@@ -57,10 +60,15 @@ public class RebootHandcuffs extends JavaPlugin implements CommandExecutor, TabC
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!command.getName().equalsIgnoreCase("uncuff")) {
-            return false;
+        if (command.getName().equalsIgnoreCase("uncuff")) {
+            return handleUncuff(sender, args);
+        } else if (command.getName().equalsIgnoreCase("cuff")) {
+            return handleCuff(sender, args);
         }
+        return false;
+    }
 
+    private boolean handleUncuff(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage("§cЭту команду может использовать только игрок!");
             return true;
@@ -91,13 +99,65 @@ public class RebootHandcuffs extends JavaPlugin implements CommandExecutor, TabC
         return true;
     }
 
+    private boolean handleCuff(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cЭту команду может использовать только игрок!");
+            return true;
+        }
+
+        if (!player.isOp() && !player.hasPermission("reboot.admin")) {
+            player.sendMessage("§cУ вас нет прав на использование этой команды!");
+            return true;
+        }
+
+        if (args.length < 1) {
+            player.sendMessage("§cИспользование: /cuff <игрок>");
+            return true;
+        }
+
+        Player target = Bukkit.getPlayer(args[0]);
+        if (target == null) {
+            player.sendMessage("§cИгрок не найден или оффлайн!");
+            return true;
+        }
+
+        if (dataManager.isHandcuffed(target)) {
+            player.sendMessage("§cИгрок уже закован в наручники!");
+            return true;
+        }
+
+        // Handcuff the target with delay (same as using lead item)
+        getServer().getScheduler().runTaskLater(this, () -> {
+            if (!dataManager.isHandcuffed(target)) {
+                dataManager.handcuff(target, player);
+                String cuffMsg = getConfig().getString("msg-cuff", "&c✖ ВЫ СВЯЗАНЫ ✖");
+                String successMsg = getConfig().getString("msg-judge-success", "&aИгрок закован");
+                target.sendActionBar(LegacyComponentSerializer.legacySection().deserialize(cuffMsg));
+                player.sendActionBar(LegacyComponentSerializer.legacySection().deserialize(successMsg));
+                getLogger().info("Handcuffed " + target.getName() + " by admin " + player.getName());
+            }
+        }, 15L); // 15 ticks delay (0.75 seconds)
+        
+        return true;
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             List<String> completions = new ArrayList<>();
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                if (dataManager.isHandcuffed(player)) {
-                    completions.add(player.getName());
+            if (command.getName().equalsIgnoreCase("uncuff")) {
+                // Show only handcuffed players for /uncuff
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    if (dataManager.isHandcuffed(player)) {
+                        completions.add(player.getName());
+                    }
+                }
+            } else if (command.getName().equalsIgnoreCase("cuff")) {
+                // Show only non-handcuffed players for /cuff
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    if (!dataManager.isHandcuffed(player)) {
+                        completions.add(player.getName());
+                    }
                 }
             }
             return completions;
