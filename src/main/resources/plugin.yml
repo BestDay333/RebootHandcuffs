@@ -9,6 +9,10 @@ commands:
     description: Admin command to remove handcuffs from a player
     usage: /uncuff <player>
     permission: reboot.admin
+  cuff:
+    description: Admin command to handcuff a player
+    usage: /cuff <player>
+    permission: reboot.admin
 
 permissions:
   reboot.judge:

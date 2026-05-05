@@ -72,12 +72,17 @@ public class PlayerListener implements Listener {
         // Check current state and perform action
         if (dataManager.isHandcuffed(target)) {
             // Unhandcuff - only if the clicking player has permission
-            dataManager.unhandcuff(target);
-            String msg = plugin.getConfig().getString("msg-uncuff", "&aНаручники сняты");
-            Component component = serializer.deserialize(msg);
-            target.sendActionBar(component);
-            player.sendActionBar(component);
-            plugin.getLogger().info("Unhandcuffed " + target.getName() + " by " + player.getName());
+            // Add delay before removing handcuffs
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (dataManager.isHandcuffed(target)) {
+                    dataManager.unhandcuff(target);
+                    String msg = plugin.getConfig().getString("msg-uncuff", "&aНаручники сняты");
+                    Component component = serializer.deserialize(msg);
+                    target.sendActionBar(component);
+                    player.sendActionBar(component);
+                    plugin.getLogger().info("Unhandcuffed " + target.getName() + " by " + player.getName());
+                }
+            }, 20L); // 1 second delay
         } else {
             // Handcuff - add a delay to prevent double-triggering and ensure server state is consistent
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
