@@ -1,25 +1,3 @@
-```
-# Compiled and build artifacts
-*.jar
-target/
+```java
 
-# Dependencies
-.gradle/
-node_modules/
-venv/
-.venv/
-
-# Editors
-.vscode/
-.idea/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Environment
-.env
-.env.local
-*.env.*
 ```

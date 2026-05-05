@@ -61,24 +61,25 @@ public class CuffTask extends BukkitRunnable {
                 // Increased pull strength for better effect
                 direction.multiply(pullStrength * 2.5);
 
-                // Force victim to stay on ground - no flying
-                // If judge is flying high, victim crawls on ground
-                direction.setY(0); // Keep victim on ground level
+                // Player follows the judge in the air like on a leash
+                // No Y restriction - victim flies with judge
+                // Anti-kick: set velocity smoothly, no teleport spam
 
                 victim.setVelocity(direction);
                 
-                // Additional teleport assist if pull is not effective
-                if (distance > maxDistance * 3) {
+                // Additional teleport assist only if pull is not effective (very far)
+                if (distance > maxDistance * 4) {
                     Location newLoc = victimLoc.clone();
                     newLoc.add(direction.clone().multiply(0.8));
-                    // Keep victim at ground level
-                    newLoc.setY(victimLoc.getY());
+                    // Match judge's Y level for flying
+                    newLoc.setY(judgeLoc.getY() + (victimLoc.getY() - judgeLoc.getY()) * 0.3);
                     victim.teleport(newLoc);
                 }
             } else {
-                // Within range - zero out X/Z velocity, keep Y for jumping/falling
+                // Within range - smooth velocity adjustment, allow flying
                 Vector currentVelocity = victim.getVelocity();
-                victim.setVelocity(new Vector(0, currentVelocity.getY(), 0));
+                Vector targetVelocity = judge.getVelocity().clone().multiply(0.8);
+                victim.setVelocity(targetVelocity);
             }
         }
     }
