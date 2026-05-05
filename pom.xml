@@ -6,7 +6,7 @@
 
     <groupId>com.reboot</groupId>
     <artifactId>RebootHandcuffs</artifactId>
-    <version>1.4</version>
+    <version>1.5</version>
     <packaging>jar</packaging>
 
     <name>RebootHandcuffs</name>
