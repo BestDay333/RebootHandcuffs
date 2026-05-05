@@ -1,27 +1,36 @@
 ```
-# Compiled and build artifacts
+# Compiled Java classes
 *.class
-*.jar
+
+# Maven/Gradle build directory
 target/
 
 # Dependencies
-.m2/
-.gradle/
+lib/
+libs/
+dependency-reduced-pom.xml
 
-# Logs and temp files
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+
+# Logs
 *.log
+
+# Temporary files
 *.tmp
+*.temp
+.DS_Store
+Thumbs.db
 
 # Environment
 .env
 .env.local
 *.env.*
-
-# Editors
-.vscode/
-.idea/
-
-# OS files
-.DS_Store
-Thumbs.db
 ```
