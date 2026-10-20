@@ -1,9 +1,14 @@
-```
 # Compiled Java classes
 *.class
 
-# Maven/Gradle build directory
+# Gradle/Maven build directories
+build/
+.gradle/
 target/
+
+# Собранные JAR-ы не храним в git — они публикуются в Releases
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
 
 # Dependencies
 lib/
@@ -33,4 +38,3 @@ Thumbs.db
 .env
 .env.local
 *.env.*
-```

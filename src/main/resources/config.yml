@@ -1,22 +1,81 @@
-# RebootHandcuffs Configuration
+# RebootHandcuffs Configuration (2.0)
+# Paper 26.3 / Java 25
 # Author: BestDay_
 
-# Permission mode: "op" for operators only, or a permission string like "reboot.judge"
+# Режим разрешений для предмета наручников:
+# "op" - только операторы, либо узел разрешения вроде "reboot.judge"
 permission: "op"
 
-# Messages (using MiniMessage format or legacy color codes)
+# Куда показывать игровые сообщения: actionbar | chat | title
+message-display: actionbar
+
+# Формат сообщений: legacy (коды &c или §c) | minimessage (коды <red>)
+message-format: legacy
+
+# ---------- Сообщения ----------
 msg-cuff: "&c✖ ВЫ СВЯЗАНЫ ✖"
 msg-uncuff: "&aНаручники сняты"
 msg-judge-success: "&aИгрок закован"
 msg-still-cuffed: "&c✖ ВЫ ВСЕ ЕЩЕ СВЯЗАНЫ ✖"
+msg-no-permission: "&cУ вас нет прав на использование этой команды!"
+msg-no-permission-cuff: "&cУ вас нет прав использовать наручники!"
+msg-player-not-found: "&cИгрок не найден или оффлайн!"
+msg-not-cuffed: "&cИгрок не закован в наручники!"
+msg-already-cuffed: "&cИгрок уже закован в наручники!"
+msg-only-player: "&cЭту команду может использовать только игрок!"
+msg-usage-cuff: "&cИспользование: /cuff <игрок>"
+msg-usage-uncuff: "&cИспользование: /uncuff <игрок>"
+msg-usage-give: "&cИспользование: /cuffgive [игрок] [количество]"
+msg-cooldown: "&eСекундочка, повторите попытку чуть позже..."
+msg-given: "&aВыдано наручников: %amount% шт. игроку %player%"
+msg-reloaded: "&aКонфигурация RebootHandcuffs перезагружена"
+msg-list-header: "&7Закованные игроки (&f%count%&7):"
+msg-list-empty: "&7Сейчас нет закованных игроков"
+msg-list-entry: "&8- &f%victim% &7<- &f%judge%"
+msg-list-entry-offline: "&8- &f%victim% &7<- &f%judge% &8[оффлайн]"
+msg-uncuff-admin: "&aНаручники сняты с игрока %player%"
+msg-uncuff-victim: "&aАдминистратор снял с вас наручники"
 
-# Physics settings
-max-distance: 1.5
-pull-strength: 0.4
+# ---------- Предмет наручников ----------
+cuff:
+  material: LEAD                 # материал предмета
+  name: "Наручники"              # название предмета (также прописывается в PDC-метке)
+  delay-ticks: 15                # задержка заковывания (15 = 0.75 сек)
+  uncuff-delay-ticks: 20         # задержка снятия (20 = 1 сек)
+  cooldown-ticks: 20             # кулдаун между использованиями по одной цели
 
-# Restrictions
+# ---------- Физика (поводок) ----------
+max-distance: 1.5          # радиус, в котором закованный может двигаться;
+                           # дальше судьи его тянет за собой (поводок)
+pull-strength: 0.15        # сила притяжения за каждый блок превышения радиуса
+                           # (плюс жертва всегда идёт с скоростью судьи)
+max-pull-strength: 0.8     # максимальная сила притяжения
+height-follow: 0.12        # плавное подтягивание по высоте
+
+# ---------- Частицы поводка ----------
+particles:
+  enabled: true
+  type: END_ROD            # тип частиц
+  every-n-ticks: 2         # как часто рисовать (1 = каждый тик)
+  density: 1.0             # частиц на блок (меньше = реже и легче для глаз)
+  max-points: 12           # максимум частиц в линии
+  max-distance: 32.0       # дальше этой дистанции линию не рисуем
+  receivers: 48            # радиус, в котором игроки видят частицы
+
+# ---------- Ограничения для закованных ----------
 restrictions:
-  allow-break: false
-  allow-place: false
-  allow-attack: false
-  allow-damage: false
+  allow-move: false        # двигаться можно только в радиусе max-distance от судьи;
+                           # true - двигаться свободно
+  allow-break: false       # ломать блоки
+  allow-place: false       # ставить блоки
+  allow-attack: false      # атаковать (в том числе снарядами)
+  allow-damage: false      # получать урон
+  allow-inventory: false   # открывать инвентари и контейнеры
+  allow-drop: false        # выбрасывать предметы
+  allow-swap-hands: false  # менять предметы местами (клавиша F)
+  allow-vehicles: false    # садиться в транспорт (лодки, вагонетки)
+  # Эти причины урона блокируются всегда, даже при allow-damage: false,
+  # иначе игрок может навсегда застрять в пустоте.
+  never-block-damage-causes:
+    - VOID
+    - KILL

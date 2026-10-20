@@ -1,110 +1,219 @@
 package com.reboot.handcuffs;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import com.destroystokyo.paper.ParticleBuilder;
 import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
 import org.bukkit.Location;
-import org.bukkit.Particle;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
-public class CuffTask extends BukkitRunnable {
+/**
+ * Ежетиковая задача физики наручников: удержание жертвы рядом со "судьёй",
+ * притяжение при отдалении и отрисовка частиц-поводка.
+ *
+ * <p>Оптимизации:
+ * <ul>
+ *   <li>работают только пары, где оба игрока онлайн и в одном мире;</li>
+ *   <li>квадрат расстояния считается без извлечения корня (корень - только при притяжении);</li>
+ *   <li>значения конфигурации берутся из кэша, а не из YAML;</li>
+ *   <li>повторно используются буферы записей, получателей частиц и один {@link ParticleBuilder};</li>
+ *   <li>частицы отправляются только игрокам в радиусе particles.receivers.</li>
+ * </ul>
+ */
+public final class CuffTask extends BukkitRunnable {
 
     private final RebootHandcuffs plugin;
     private final DataManager dataManager;
+    private final PluginSettings settings;
 
-    public CuffTask(RebootHandcuffs plugin, DataManager dataManager) {
+    private final List<CuffRecord> buffer = new ArrayList<>();
+    private final List<Player> receiverBuffer = new ArrayList<>();
+    private final Set<UUID> liveJudges = new HashSet<>();
+    /** Прошлые позиции судей - чтобы считать их скорость и тянуть жертву ровно за ним. */
+    private final Map<UUID, Location> lastJudgePositions = new HashMap<>();
+    private long tick;
+
+    public CuffTask(RebootHandcuffs plugin, DataManager dataManager, PluginSettings settings) {
         this.plugin = plugin;
         this.dataManager = dataManager;
+        this.settings = settings;
     }
 
     @Override
     public void run() {
-        Map<UUID, UUID> handcuffedPlayers = dataManager.getHandcuffedPlayers();
+        // Снимок записей: за время итерации что-то могут снять, поэтому состояние перепроверяем.
+        buffer.clear();
+        buffer.addAll(dataManager.getRecords());
+        if (buffer.isEmpty()) {
+            lastJudgePositions.clear();
+            return;
+        }
 
-        for (Map.Entry<UUID, UUID> entry : handcuffedPlayers.entrySet()) {
-            UUID victimUuid = entry.getKey();
-            UUID judgeUuid = entry.getValue();
+        tick++;
+        ParticleBuilder builder = null;
+        if (settings.particleEnabled() && (tick % settings.particleEveryNTicks() == 0L)) {
+            builder = settings.particle().builder().count(0);
+        }
 
-            Player victim = Bukkit.getPlayer(victimUuid);
-            Player judge = Bukkit.getPlayer(judgeUuid);
+        liveJudges.clear();
 
-            if (victim == null) {
-                continue; // Victim is offline
-            }
+        double maxDistance = settings.maxDistance();
+        double maxDistanceSq = maxDistance * maxDistance;
+        double maxParticleDistance = settings.particleMaxDistance();
+        double maxParticleDistanceSq = maxParticleDistance * maxParticleDistance;
 
-            if (judge == null) {
-                // Judge is offline - victim stays in place (handled by PlayerMoveEvent)
-                // Just skip the pulling logic
+        for (CuffRecord record : buffer) {
+            UUID victimId = record.getVictim();
+            if (!dataManager.isHandcuffed(victimId)) {
                 continue;
             }
 
-            Location victimLoc = victim.getLocation();
-            Location judgeLoc = judge.getLocation();
+            Player victim = Bukkit.getPlayer(victimId);
+            if (victim == null || !victim.isOnline()) {
+                continue;
+            }
 
-            double distance = victimLoc.distance(judgeLoc);
-            double maxDistance = plugin.getConfig().getDouble("max-distance", 1.5);
-            
-            // Draw visible leash particles between victim and judge
-            drawLeashParticles(victimLoc, judgeLoc);
+            if (!settings.allowVehicles() && victim.isInsideVehicle()) {
+                victim.leaveVehicle();
+            }
 
-            if (distance > maxDistance) {
-                // Calculate direction vector to judge
-                Vector direction = judgeLoc.toVector().subtract(victimLoc.toVector());
-                double dist = direction.length();
-                
-                if (dist > 0) {
-                    direction.normalize();
-                    
-                    // Calculate pull strength - stronger when farther, softer when closer
-                    double pullStrength = Math.min((dist - maxDistance) * 0.15, 0.8);
-                    
-                    // Create velocity towards judge with smooth interpolation
-                    Vector pullVelocity = direction.clone().multiply(pullStrength);
-                    
-                    // Add vertical component to follow judge's height smoothly
-                    double heightDiff = judgeLoc.getY() - victimLoc.getY();
-                    if (Math.abs(heightDiff) > 0.5) {
-                        pullVelocity.setY(heightDiff * 0.12);
-                    } else {
-                        pullVelocity.setY(0);
-                    }
-                    
-                    // Apply velocity - this feels like being pulled by a leash
-                    victim.setVelocity(pullVelocity);
-                    victim.setFallDistance(0);
-                }
-            } else {
-                // Within range - match judge's movement smoothly
-                Vector judgeVel = judge.getVelocity();
-                
-                // Apply a portion of judge's velocity for natural leash feel
-                victim.setVelocity(judgeVel.clone().multiply(0.7));
-                victim.setFallDistance(0);
+            UUID judgeId = record.getJudge();
+            if (judgeId == null) {
+                continue; // наручники надеты консольью - притягивать некому
+            }
+
+            Player judge = Bukkit.getPlayer(judgeId);
+            if (judge == null || !judge.isOnline()) {
+                continue; // судья оффлайн - жертва просто стоит на месте
+            }
+
+            // Разные миры: distance() бросил бы исключение (так и было в старой версии).
+            if (victim.getWorld() != judge.getWorld()) {
+                continue;
+            }
+
+            liveJudges.add(judgeId);
+
+            Location victimLocation = victim.getLocation();
+            Location judgeLocation = judge.getLocation();
+            double dx = judgeLocation.getX() - victimLocation.getX();
+            double dy = judgeLocation.getY() - victimLocation.getY();
+            double dz = judgeLocation.getZ() - victimLocation.getZ();
+            double distanceSq = dx * dx + dy * dy + dz * dz;
+
+            double judgeSpeed = updateJudgeSpeed(judgeId, judgeLocation);
+
+            if (distanceSq > maxDistanceSq) {
+                pull(victim, dx, dy, dz, distanceSq, maxDistance, judgeSpeed);
+            }
+
+            if (builder != null && distanceSq <= maxParticleDistanceSq) {
+                drawLeash(builder, victimLocation, dx, dy, dz, distanceSq);
             }
         }
+
+        // Забываем судей, пара с которыми уже не активна.
+        lastJudgePositions.keySet().removeIf(id -> !liveJudges.contains(id));
     }
 
-    private void drawLeashParticles(Location victimLoc, Location judgeLoc) {
-        // Draw particle line from victim to judge to simulate visible leash
-        double distance = victimLoc.distance(judgeLoc);
-        int particles = (int) Math.ceil(distance * 3);
-        
-        if (particles < 1) return;
-        
-        Vector step = judgeLoc.toVector().subtract(victimLoc.toVector()).divide(new Vector(particles, particles, particles));
-        
-        Location current = victimLoc.clone().add(0, 0.5, 0); // Start from victim's chest height
-        
-        for (int i = 0; i < particles; i++) {
-            current.add(step);
-            victimLoc.getWorld().spawnParticle(Particle.END_ROD, current, 1, 0, 0, 0, 0);
+    /** Горизонтальная скорость судьи с прошлого тика (блоков за тик). */
+    private double updateJudgeSpeed(UUID judgeId, Location judgeLocation) {
+        Location previous = lastJudgePositions.get(judgeId);
+        if (previous == null) {
+            lastJudgePositions.put(judgeId, judgeLocation.clone());
+            return 0.0D;
+        }
+        double dx = judgeLocation.getX() - previous.getX();
+        double dz = judgeLocation.getZ() - previous.getZ();
+        previous.setX(judgeLocation.getX());
+        previous.setY(judgeLocation.getY());
+        previous.setZ(judgeLocation.getZ());
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    /**
+     * Плавно подтягивает жертву к судье, если тот ушёл дальше max-distance.
+     * Сила притяжения равна скорости судьей (жертва идёт ровно за ним)
+     * плюс растяжение поводка за каждый блок превышения.
+     */
+    private void pull(Player victim, double dx, double dy, double dz,
+                      double distanceSq, double maxDistance, double judgeSpeed) {
+        double distance = Math.sqrt(distanceSq);
+        double invDistance = 1.0D / distance;
+        double strength = Math.min(
+                settings.maxPullStrength(),
+                judgeSpeed * 1.2D + (distance - maxDistance) * settings.pullStrength());
+        Vector velocity = new Vector(dx * invDistance * strength, 0.0D, dz * invDistance * strength);
+        if (dy > 0.5D) {
+            // Судья выше: подтягиваем вверх с импульсом прыжка, чтобы перешагивать блоки.
+            velocity.setY(Math.max(dy * settings.heightFollow(), 0.42D));
+        } else if (dy < -0.5D) {
+            velocity.setY(dy * settings.heightFollow());
+        }
+        victim.setVelocity(velocity);
+        victim.setFallDistance(0f);
+    }
+
+    /** Рисует линию из частиц от жертвы к судье (в начале координат - грудь жертвы). */
+    private void drawLeash(ParticleBuilder builder, Location from, double dx, double dy, double dz, double distanceSq) {
+        World world = from.getWorld();
+        if (world == null) {
+            return;
+        }
+
+        // Получатели считаются от позиции жертвы (в радиусе particles.receivers).
+        receiverBuffer.clear();
+        double receiverDistanceSq = settings.particleReceivers() * (double) settings.particleReceivers();
+        for (Player player : world.getPlayers()) {
+            Location playerLocation = player.getLocation();
+            double rx = playerLocation.getX() - from.getX();
+            double ry = playerLocation.getY() - from.getY();
+            double rz = playerLocation.getZ() - from.getZ();
+            if (rx * rx + ry * ry + rz * rz <= receiverDistanceSq) {
+                receiverBuffer.add(player);
+            }
+        }
+        if (receiverBuffer.isEmpty()) {
+            return;
+        }
+
+        int points = (int) Math.ceil(Math.sqrt(distanceSq) * settings.particleDensity());
+        if (points > settings.particleMaxPoints()) {
+            points = settings.particleMaxPoints();
+        }
+        if (points < 1) {
+            return;
+        }
+
+        double stepX = dx / points;
+        double stepY = dy / points;
+        double stepZ = dz / points;
+        double startY = from.getY() + 0.5D;
+
+        // Один переиспользуемый Location на всю линию - без аллокаций в цикле.
+        Location point = new Location(world, from.getX(), startY, from.getZ());
+
+        // Важно: location задаётся ДО receivers(...). Часть перегрузок receivers(...)
+        // в Paper 26.3 бросает IllegalStateException("Please set location first"),
+        // если позиция частиц ещё не установлена. location(Location) внутри клонирует
+        // объект, поэтому последующие point.set(...) байлдера не ломают.
+        builder.location(point);
+        builder.receivers(receiverBuffer);
+
+        for (int i = 1; i <= points; i++) {
+            builder.location(point.set(
+                    from.getX() + stepX * i,
+                    startY + stepY * i,
+                    from.getZ() + stepZ * i)).spawn();
         }
     }
 }

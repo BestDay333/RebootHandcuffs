@@ -1,23 +1,42 @@
 name: RebootHandcuffs
-version: 1.0
+version: ${project.version}
 main: com.reboot.handcuffs.RebootHandcuffs
-api-version: '1.21'
+api-version: '26.3'
 author: BestDay_
+description: RP handcuffs mechanic with persistence, leash physics and restrictions
+website: https://github.com/BestDay333
 
 commands:
-  uncuff:
-    description: Admin command to remove handcuffs from a player
-    usage: /uncuff <player>
-    permission: reboot.admin
   cuff:
-    description: Admin command to handcuff a player
-    usage: /cuff <player>
+    description: Заковать игрока в наручники
+    usage: /cuff <игрок>
     permission: reboot.admin
+    permission-message: У вас нет прав на использование этой команды!
+  uncuff:
+    description: Снять наручники с игрока (работает и с оффлайн-игроками)
+    usage: /uncuff <игрок>
+    permission: reboot.admin
+    permission-message: У вас нет прав на использование этой команды!
+  cuffgive:
+    description: Выдать предмет "Наручники"
+    usage: /cuffgive [игрок] [количество]
+    permission: reboot.admin
+    permission-message: У вас нет прав на использование этой команды!
+  cufflist:
+    description: Показать список закованных игроков
+    usage: /cufflist
+    permission: reboot.admin
+    permission-message: У вас нет прав на использование этой команды!
+  cuffreload:
+    description: Перезагрузить конфигурацию плагина
+    usage: /cuffreload
+    permission: reboot.admin
+    permission-message: У вас нет прав на использование этой команды!
 
 permissions:
   reboot.judge:
-    description: Permission to use handcuffs
+    description: Право использовать предмет наручников
     default: op
   reboot.admin:
-    description: Permission to use admin commands
+    description: Доступ к административным командам плагина
     default: op
