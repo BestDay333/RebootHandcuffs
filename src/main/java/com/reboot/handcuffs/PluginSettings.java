@@ -44,6 +44,8 @@ public final class PluginSettings {
     private long cuffDelay = 15L;
     private long uncuffDelay = 20L;
     private long cooldownTicks = 20L;
+    /** 0 - автоснятие отключено. */
+    private long autoUncuffSeconds;
 
     private double maxDistance = 1.5D;
     private double pullStrength = 0.15D;
@@ -67,6 +69,7 @@ public final class PluginSettings {
     private boolean allowDrop;
     private boolean allowSwapHands;
     private boolean allowVehicles;
+    private boolean allowInteract;
     private Set<DamageCause> neverBlockDamage = defaultDamageExemptions();
 
     public PluginSettings(RebootHandcuffs plugin) {
@@ -101,9 +104,11 @@ public final class PluginSettings {
         plainCuffItemName = PlainTextComponentSerializer.plainText()
                 .serialize(deserialize(rawCuffItemName)).trim();
 
-        cuffDelay = clampLong(cfg.getLong("cuff.delay-ticks", 15L), 0L, 1200L);
-        uncuffDelay = clampLong(cfg.getLong("cuff.uncuff-delay-ticks", 20L), 0L, 1200L);
-        cooldownTicks = clampLong(cfg.getLong("cuff.cooldown-ticks", 20L), 0L, 1200L);
+        cuffDelay = Maths.clampLong(cfg.getLong("cuff.delay-ticks", 15L), 0L, 1200L);
+        uncuffDelay = Maths.clampLong(cfg.getLong("cuff.uncuff-delay-ticks", 20L), 0L, 1200L);
+        cooldownTicks = Maths.clampLong(cfg.getLong("cuff.cooldown-ticks", 20L), 0L, 1200L);
+        autoUncuffSeconds = Maths.clampLong(
+                cfg.getLong("cuff.auto-uncuff-after-seconds", 0L), 0L, 60L * 60L * 24L * 30L);
 
         maxDistance = Math.max(0.1D, cfg.getDouble("max-distance", 1.5D));
         pullStrength = Math.max(0.0D, cfg.getDouble("pull-strength", 0.15D));
@@ -120,13 +125,14 @@ public final class PluginSettings {
                 plugin.getLogger().warning("Unknown particle '" + particleName + "', falling back to END_ROD");
             }
         }
-        particleEveryNTicks = (int) clampLong(cfg.getLong("particles.every-n-ticks", 2L), 1L, 20L);
-        particleDensity = clampDouble(cfg.getDouble("particles.density", 1.0D), 0.1D, 32.0D);
-        particleMaxPoints = (int) clampLong(cfg.getLong("particles.max-points", 12L), 1L, 128L);
+        particleEveryNTicks = (int) Maths.clampLong(cfg.getLong("particles.every-n-ticks", 2L), 1L, 20L);
+        particleDensity = Maths.clampDouble(cfg.getDouble("particles.density", 1.0D), 0.1D, 32.0D);
+        particleMaxPoints = (int) Maths.clampLong(cfg.getLong("particles.max-points", 12L), 1L, 128L);
         particleMaxDistance = Math.max(1.0D, cfg.getDouble("particles.max-distance", 32.0D));
-        particleReceivers = (int) clampLong(cfg.getLong("particles.receivers", 48L), 1L, 512L);
+        particleReceivers = (int) Maths.clampLong(cfg.getLong("particles.receivers", 48L), 1L, 512L);
 
-        allowMove = cfg.getBoolean("restrictions.allow-move", false);        allowBreak = cfg.getBoolean("restrictions.allow-break", false);
+        allowMove = cfg.getBoolean("restrictions.allow-move", false);
+        allowBreak = cfg.getBoolean("restrictions.allow-break", false);
         allowPlace = cfg.getBoolean("restrictions.allow-place", false);
         allowAttack = cfg.getBoolean("restrictions.allow-attack", false);
         allowDamage = cfg.getBoolean("restrictions.allow-damage", false);
@@ -134,6 +140,7 @@ public final class PluginSettings {
         allowDrop = cfg.getBoolean("restrictions.allow-drop", false);
         allowSwapHands = cfg.getBoolean("restrictions.allow-swap-hands", false);
         allowVehicles = cfg.getBoolean("restrictions.allow-vehicles", false);
+        allowInteract = cfg.getBoolean("restrictions.allow-interact", false);
 
         EnumSet<DamageCause> causes = EnumSet.noneOf(DamageCause.class);
         for (String raw : cfg.getStringList("restrictions.never-block-damage-causes")) {
@@ -173,6 +180,11 @@ public final class PluginSettings {
 
     public long cooldownMillis() {
         return cooldownTicks * 50L;
+    }
+
+    /** 0 - автоснятие наручников отключено, иначе - секунды заковывания. */
+    public long autoUncuffSeconds() {
+        return autoUncuffSeconds;
     }
 
     public double maxDistance() {
@@ -255,6 +267,10 @@ public final class PluginSettings {
         return allowVehicles;
     }
 
+    public boolean allowInteract() {
+        return allowInteract;
+    }
+
     public Set<DamageCause> neverBlockDamage() {
         return neverBlockDamage;
     }
@@ -268,16 +284,21 @@ public final class PluginSettings {
     }
 
     public boolean isCuffItem(ItemStack item) {
-        if (item == null || item.getType() != cuffItem) {
+        if (item == null || item.getType().isAir()) {
             return false;
         }
         ItemMeta meta = item.getItemMeta();
         if (meta == null) {
             return false;
         }
+        // PDC-метка важнее материала: предмет остаётся наручниками, даже если
+        // cuff.material сменили в конфиге после выдачи.
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         if (pdc.has(cuffItemKey, PersistentDataType.STRING)) {
             return true;
+        }
+        if (item.getType() != cuffItem) {
+            return false;
         }
         Component name = meta.displayName();
         if (name == null) {
@@ -322,7 +343,7 @@ public final class PluginSettings {
     }
 
     public Component component(String key, String def, String... placeholders) {
-        return deserialize(applyPlaceholders(raw(key, def), placeholders));
+        return deserialize(Maths.applyPlaceholders(raw(key, def), placeholders));
     }
 
     /** Сообщение в чат - всегда в чат, независимо от message-display. */
@@ -343,33 +364,11 @@ public final class PluginSettings {
         }
     }
 
-    private static String applyPlaceholders(String input, String... placeholders) {
-        if (placeholders == null || placeholders.length < 2) {
-            return input;
-        }
-        String result = input;
-        for (int i = 0; i + 1 < placeholders.length; i += 2) {
-            result = result.replace(placeholders[i], placeholders[i + 1]);
-        }
-        return result;
-    }
-
     // ------------------------------------------------------------------
     //  Утилиты
     // ------------------------------------------------------------------
 
     private static EnumSet<DamageCause> defaultDamageExemptions() {
         return EnumSet.of(DamageCause.VOID, DamageCause.KILL);
-    }
-
-    private static long clampLong(long value, long min, long max) {
-        return Math.max(min, Math.min(max, value));
-    }
-
-    private static double clampDouble(double value, double min, double max) {
-        if (Double.isNaN(value)) {
-            return min;
-        }
-        return Math.max(min, Math.min(max, value));
     }
 }

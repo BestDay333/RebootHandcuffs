@@ -59,6 +59,7 @@ public final class CuffTask extends BukkitRunnable {
         }
 
         tick++;
+        long now = System.currentTimeMillis();
         ParticleBuilder builder = null;
         if (settings.particleEnabled() && (tick % settings.particleEveryNTicks() == 0L)) {
             builder = settings.particle().builder().count(0);
@@ -70,6 +71,8 @@ public final class CuffTask extends BukkitRunnable {
         double maxDistanceSq = maxDistance * maxDistance;
         double maxParticleDistance = settings.particleMaxDistance();
         double maxParticleDistanceSq = maxParticleDistance * maxParticleDistance;
+        long autoUncuffMillis = settings.autoUncuffSeconds() * 1000L;
+        boolean leashActive = !settings.allowMove();
 
         for (CuffRecord record : buffer) {
             UUID victimId = record.getVictim();
@@ -79,6 +82,16 @@ public final class CuffTask extends BukkitRunnable {
 
             Player victim = Bukkit.getPlayer(victimId);
             if (victim == null || !victim.isOnline()) {
+                continue;
+            }
+
+            // Автоснятие по времени (если включено в конфиге).
+            if (autoUncuffMillis > 0L && now - record.getCuffedAt() >= autoUncuffMillis) {
+                if (dataManager.unhandcuff(victimId)) {
+                    settings.send(victim, "msg-auto-uncuff", "&aНаручники автоматически сняты");
+                    plugin.getLogger().info("Auto-uncuffed " + victim.getName()
+                            + " (limit " + settings.autoUncuffSeconds() + "s)");
+                }
                 continue;
             }
 
@@ -112,7 +125,7 @@ public final class CuffTask extends BukkitRunnable {
 
             double judgeSpeed = updateJudgeSpeed(judgeId, judgeLocation);
 
-            if (distanceSq > maxDistanceSq) {
+            if (leashActive && distanceSq > maxDistanceSq) {
                 pull(victim, dx, dy, dz, distanceSq, maxDistance, judgeSpeed);
             }
 
@@ -149,9 +162,8 @@ public final class CuffTask extends BukkitRunnable {
                       double distanceSq, double maxDistance, double judgeSpeed) {
         double distance = Math.sqrt(distanceSq);
         double invDistance = 1.0D / distance;
-        double strength = Math.min(
-                settings.maxPullStrength(),
-                judgeSpeed * 1.2D + (distance - maxDistance) * settings.pullStrength());
+        double strength = LeashMath.pullStrength(
+                settings.maxPullStrength(), judgeSpeed, distance - maxDistance, settings.pullStrength());
         Vector velocity = new Vector(dx * invDistance * strength, 0.0D, dz * invDistance * strength);
         if (dy > 0.5D) {
             // Судья выше: подтягиваем вверх с импульсом прыжка, чтобы перешагивать блоки.
@@ -186,13 +198,8 @@ public final class CuffTask extends BukkitRunnable {
             return;
         }
 
-        int points = (int) Math.ceil(Math.sqrt(distanceSq) * settings.particleDensity());
-        if (points > settings.particleMaxPoints()) {
-            points = settings.particleMaxPoints();
-        }
-        if (points < 1) {
-            return;
-        }
+        int points = LeashMath.particlePoints(
+                Math.sqrt(distanceSq), settings.particleDensity(), settings.particleMaxPoints());
 
         double stepX = dx / points;
         double stepY = dy / points;

@@ -266,21 +266,33 @@ public final class DataManager {
         }
 
         ConfigurationSection cuffedSection = cfg.getConfigurationSection(SECTION_CUFFED);
-        if (cuffedSection != null) {
-            for (String key : cuffedSection.getKeys(false)) {
-                UUID victimId = parseUuid(key);
-                if (victimId == null) {
-                    plugin.getLogger().warning("Invalid victim UUID in handcuffs.yml: " + key);
-                    continue;
+        ConfigurationSection pendingSection = cfg.getConfigurationSection(SECTION_PENDING);
+        int format = cfg.getInt(KEY_FORMAT, 0);
+        if (format > FORMAT_VERSION) {
+            plugin.getLogger().warning("handcuffs.yml has format " + format
+                    + ", this build understands " + FORMAT_VERSION
+                    + " - loading best-effort, unknown data will be dropped on save");
+        }
+
+        // Новый формат распознаётся по секциям ИЛИ по ключу format: секции могут быть
+        // пустыми (например, только pending-restore) - в таком случае legacy-разбор
+        // потерял бы отложенные предметы игроков.
+        if (cuffedSection != null || pendingSection != null || cfg.isSet(KEY_FORMAT)) {
+            if (cuffedSection != null) {
+                for (String key : cuffedSection.getKeys(false)) {
+                    UUID victimId = parseUuid(key);
+                    if (victimId == null) {
+                        plugin.getLogger().warning("Invalid victim UUID in handcuffs.yml: " + key);
+                        continue;
+                    }
+                    ConfigurationSection section = cuffedSection.getConfigurationSection(key);
+                    if (section == null) {
+                        continue;
+                    }
+                    loadNewFormat(victimId, section);
                 }
-                ConfigurationSection section = cuffedSection.getConfigurationSection(key);
-                if (section == null) {
-                    continue;
-                }
-                loadNewFormat(victimId, section);
             }
 
-            ConfigurationSection pendingSection = cfg.getConfigurationSection(SECTION_PENDING);
             if (pendingSection != null) {
                 for (String key : pendingSection.getKeys(false)) {
                     UUID playerId = parseUuid(key);
@@ -394,6 +406,11 @@ public final class DataManager {
     /** Запланировать сохранение (асинхронно, главный поток не блокируется). */
     public void saveHandcuffsData() {
         String snapshot = buildSnapshot();
+        if (snapshot == null) {
+            // Сериализация не удалась: не затираем последний удачный снимок,
+            // он будет записан при следующем успешном сохранении.
+            return;
+        }
         synchronized (saveLock) {
             if (closed) {
                 return;
@@ -409,24 +426,30 @@ public final class DataManager {
     }
 
     private void performSave() {
-        try {
-            while (true) {
-                String snapshot;
-                synchronized (saveLock) {
-                    snapshot = pendingSnapshot;
-                    pendingSnapshot = null;
-                    if (snapshot == null || closed) {
-                        saving = false;
-                        return;
-                    }
-                }
-                writeAtomic(snapshot);
-            }
-        } catch (Throwable t) {
+        while (true) {
+            String snapshot;
             synchronized (saveLock) {
-                saving = false;
+                snapshot = pendingSnapshot;
+                pendingSnapshot = null;
+                if (snapshot == null || closed) {
+                    saving = false;
+                    return;
+                }
             }
-            plugin.getLogger().log(Level.SEVERE, "Failed to save handcuffs.yml", t);
+            try {
+                writeAtomic(snapshot);
+            } catch (Throwable t) {
+                synchronized (saveLock) {
+                    // Возвращаем снимок в очередь: он допишется при следующем сохранении.
+                    if (pendingSnapshot == null) {
+                        pendingSnapshot = snapshot;
+                    }
+                    saving = false;
+                }
+                plugin.getLogger().log(Level.SEVERE,
+                        "Failed to save handcuffs.yml, snapshot queued for retry", t);
+                return;
+            }
         }
     }
 
@@ -467,10 +490,7 @@ public final class DataManager {
         }
     }
 
-    private void writeAtomic(String content) {
-        if (content == null) {
-            return;
-        }
+    private void writeAtomic(String content) throws IOException {
         synchronized (ioLock) {
             if (closed) {
                 return;
@@ -479,23 +499,19 @@ public final class DataManager {
         }
     }
 
-    private void writeToDisk(String content) {
+    private void writeToDisk(String content) throws IOException {
+        File parent = handcuffsFile.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            throw new IOException("Cannot create directory " + parent);
+        }
+        Path target = handcuffsFile.toPath();
+        Path temp = target.resolveSibling(handcuffsFile.getName() + ".tmp");
+        Files.writeString(temp, content, StandardCharsets.UTF_8);
         try {
-            File parent = handcuffsFile.getParentFile();
-            if (parent != null && !parent.exists() && !parent.mkdirs()) {
-                throw new IOException("Cannot create directory " + parent);
-            }
-            Path target = handcuffsFile.toPath();
-            Path temp = target.resolveSibling(handcuffsFile.getName() + ".tmp");
-            Files.writeString(temp, content, StandardCharsets.UTF_8);
-            try {
-                Files.move(temp, target,
-                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException ex) {
-                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException ex) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to write handcuffs.yml", ex);
+            Files.move(temp, target,
+                    StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException ex) {
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 
@@ -510,9 +526,14 @@ public final class DataManager {
         if (snapshot == null) {
             return;
         }
-        synchronized (ioLock) {
-            writeToDisk(snapshot);
+        try {
+            synchronized (ioLock) {
+                writeToDisk(snapshot);
+            }
+            plugin.getLogger().info("Handcuffs data saved (" + handcuffed.size() + " record(s))");
+        } catch (IOException ex) {
+            plugin.getLogger().log(Level.SEVERE,
+                    "Failed to write handcuffs.yml on shutdown!", ex);
         }
-        plugin.getLogger().info("Handcuffs data saved (" + handcuffed.size() + " record(s))");
     }
 }

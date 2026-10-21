@@ -1,4 +1,4 @@
-# RebootHandcuffs Configuration (2.0)
+# RebootHandcuffs Configuration (2.0.2)
 # Paper 26.3 / Java 25
 # Author: BestDay_
 
@@ -31,10 +31,11 @@ msg-given: "&aВыдано наручников: %amount% шт. игроку %pl
 msg-reloaded: "&aКонфигурация RebootHandcuffs перезагружена"
 msg-list-header: "&7Закованные игроки (&f%count%&7):"
 msg-list-empty: "&7Сейчас нет закованных игроков"
-msg-list-entry: "&8- &f%victim% &7<- &f%judge%"
-msg-list-entry-offline: "&8- &f%victim% &7<- &f%judge% &8[оффлайн]"
+msg-list-entry: "&8- &f%victim% &7<- &f%judge% &8(%time%)"
+msg-list-entry-offline: "&8- &f%victim% &7<- &f%judge% &8(%time%) [оффлайн]"
 msg-uncuff-admin: "&aНаручники сняты с игрока %player%"
 msg-uncuff-victim: "&aАдминистратор снял с вас наручники"
+msg-auto-uncuff: "&aНаручники автоматически сняты по времени"
 
 # ---------- Предмет наручников ----------
 cuff:
@@ -43,6 +44,7 @@ cuff:
   delay-ticks: 15                # задержка заковывания (15 = 0.75 сек)
   uncuff-delay-ticks: 20         # задержка снятия (20 = 1 сек)
   cooldown-ticks: 20             # кулдаун между использованиями по одной цели
+  auto-uncuff-after-seconds: 0   # автоснять наручники через N секунд (0 = выключено)
 
 # ---------- Физика (поводок) ----------
 max-distance: 1.5          # радиус, в котором закованный может двигаться;
@@ -74,7 +76,8 @@ restrictions:
   allow-drop: false        # выбрасывать предметы
   allow-swap-hands: false  # менять предметы местами (клавиша F)
   allow-vehicles: false    # садиться в транспорт (лодки, вагонетки)
-  # Эти причины урона блокируются всегда, даже при allow-damage: false,
+  allow-interact: false    # взаимодействовать с блоками (двери, кнопки, рычаги, кровати)
+  # Эти причины урона НЕ блокируются никогда (при allow-damage: false тоже),
   # иначе игрок может навсегда застрять в пустоте.
   never-block-damage-causes:
     - VOID

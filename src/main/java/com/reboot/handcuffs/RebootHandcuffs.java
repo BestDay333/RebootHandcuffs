@@ -13,6 +13,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -29,8 +30,8 @@ public final class RebootHandcuffs extends JavaPlugin implements CommandExecutor
 
     /** Отложенные действия (заковать/снять) по цели. */
     private final Map<UUID, BukkitTask> pendingActions = new HashMap<>();
-    /** Время последнего действия по цели - простой кулдаун от спама кликами. */
-    private final Map<UUID, Long> lastActionAt = new HashMap<>();
+    /** Кулдаун между использованиями предмета по одной цели (простой анти-спам). */
+    private final CooldownTracker cooldowns = new CooldownTracker(System::currentTimeMillis);
 
     @Override
     public void onEnable() {
@@ -38,6 +39,7 @@ public final class RebootHandcuffs extends JavaPlugin implements CommandExecutor
 
         settings = new PluginSettings(this);
         settings.reload();
+        cooldowns.setCooldownMillis(settings.cooldownMillis());
 
         dataManager = new DataManager(this);
 
@@ -91,22 +93,7 @@ public final class RebootHandcuffs extends JavaPlugin implements CommandExecutor
      * @return true, если действие разрешено
      */
     public boolean tryStartAction(UUID targetId) {
-        long now = System.currentTimeMillis();
-        long cooldown = settings.cooldownMillis();
-        if (cooldown <= 0) {
-            return true;
-        }
-
-        if (lastActionAt.size() > 64) {
-            lastActionAt.entrySet().removeIf(entry -> now - entry.getValue() > cooldown * 4L);
-        }
-
-        Long last = lastActionAt.get(targetId);
-        if (last != null && now - last < cooldown) {
-            return false;
-        }
-        lastActionAt.put(targetId, now);
-        return true;
+        return cooldowns.tryStart(targetId);
     }
 
     /** Планирует заковывание/снятие через настройку cuff.delay-ticks. */
@@ -198,8 +185,7 @@ public final class RebootHandcuffs extends JavaPlugin implements CommandExecutor
     }
 
     private boolean handleCuff(CommandSender sender, String[] args) {
-        if (!hasAdminPermission(sender)) {
-            settings.sendChat(sender, "msg-no-permission", "&cУ вас нет прав на использование этой команды!");
+        if (!requireAdmin(sender)) {
             return true;
         }
         if (args.length < 1) {
@@ -223,8 +209,7 @@ public final class RebootHandcuffs extends JavaPlugin implements CommandExecutor
     }
 
     private boolean handleUncuff(CommandSender sender, String[] args) {
-        if (!hasAdminPermission(sender)) {
-            settings.sendChat(sender, "msg-no-permission", "&cУ вас нет прав на использование этой команды!");
+        if (!requireAdmin(sender)) {
             return true;
         }
         if (args.length < 1) {
@@ -272,8 +257,7 @@ public final class RebootHandcuffs extends JavaPlugin implements CommandExecutor
     }
 
     private boolean handleGive(CommandSender sender, String[] args) {
-        if (!hasAdminPermission(sender)) {
-            settings.sendChat(sender, "msg-no-permission", "&cУ вас нет прав на использование этой команды!");
+        if (!requireAdmin(sender)) {
             return true;
         }
 
@@ -311,8 +295,7 @@ public final class RebootHandcuffs extends JavaPlugin implements CommandExecutor
     }
 
     private boolean handleList(CommandSender sender) {
-        if (!hasAdminPermission(sender)) {
-            settings.sendChat(sender, "msg-no-permission", "&cУ вас нет прав на использование этой команды!");
+        if (!requireAdmin(sender)) {
             return true;
         }
 
@@ -322,28 +305,42 @@ public final class RebootHandcuffs extends JavaPlugin implements CommandExecutor
             return true;
         }
 
+        // Сначала самые свежие заковывания - так список удобно читать.
+        List<CuffRecord> sorted = new ArrayList<>(records);
+        sorted.sort(Comparator.comparingLong(CuffRecord::getCuffedAt).reversed());
+
         settings.sendChat(sender, "msg-list-header", "&7Закованные игроки (&f%count%&7):",
-                "%count%", String.valueOf(records.size()));
-        for (CuffRecord record : records) {
+                "%count%", String.valueOf(sorted.size()));
+        for (CuffRecord record : sorted) {
             boolean online = Bukkit.getPlayer(record.getVictim()) != null;
             settings.sendChat(sender,
                     online ? "msg-list-entry" : "msg-list-entry-offline",
-                    "&8- &f%victim% &7<- &f%judge%",
+                    "&8- &f%victim% &7<- &f%judge% &8(%time%)",
                     "%victim%", record.getVictimName(),
-                    "%judge%", record.getJudgeName());
+                    "%judge%", record.getJudgeName(),
+                    "%time%", Maths.formatDuration(System.currentTimeMillis() - record.getCuffedAt()));
         }
         return true;
     }
 
     private boolean handleReload(CommandSender sender) {
-        if (!hasAdminPermission(sender)) {
-            settings.sendChat(sender, "msg-no-permission", "&cУ вас нет прав на использование этой команды!");
+        if (!requireAdmin(sender)) {
             return true;
         }
         settings.reload();
+        cooldowns.setCooldownMillis(settings.cooldownMillis());
         settings.sendChat(sender, "msg-reloaded", "&aКонфигурация RebootHandcuffs перезагружена");
         getLogger().info("Configuration reloaded by " + sender.getName());
         return true;
+    }
+
+    /** @return true, если у отправителя есть права (и ничего не отправлялось) */
+    private boolean requireAdmin(CommandSender sender) {
+        if (hasAdminPermission(sender)) {
+            return true;
+        }
+        settings.sendChat(sender, "msg-no-permission", "&cУ вас нет прав на использование этой команды!");
+        return false;
     }
 
     private static boolean hasAdminPermission(CommandSender sender) {

@@ -7,13 +7,16 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -61,15 +64,16 @@ public final class PlayerListener implements Listener {
             return;
         }
 
+        // Отключаем ванильный поводок в любом случае: иначе игрок без прав
+        // привязывал бы жертву предметом LEAD без какой-либо механики плагина.
+        event.setCancelled(true);
+
         if (!settings.hasPermission(player)) {
             // Уведомляем только самого игрока, никакой рассылки остальным.
             settings.send(player, "msg-no-permission-cuff",
                     "&cУ вас нет прав использовать наручники!");
             return;
         }
-
-        // Отключаем привязку поводка по умолчанию - работаем только мы.
-        event.setCancelled(true);
 
         if (!plugin.tryStartAction(target.getUniqueId())) {
             settings.send(player, "msg-cooldown", "&eСекундочка, повторите попытку чуть позже...");
@@ -122,21 +126,15 @@ public final class PlayerListener implements Listener {
         // За границей радиуса позиция прижимается к границе сферы: направление
         // движения сохраняется, поэтому уходящего судью жертва плавно тянет
         // за собой, а не откатывает на старое место.
-        double maxDistance = settings.maxDistance();
-        double dx = to.getX() - judge.getX();
-        double dy = to.getY() - judge.getY();
-        double dz = to.getZ() - judge.getZ();
-        double distanceSq = dx * dx + dy * dy + dz * dz;
-        double maxDistanceSq = maxDistance * maxDistance;
-        if (distanceSq <= maxDistanceSq) {
+        double[] clamped = LeashMath.clampToLeash(
+                to.getX(), to.getY(), to.getZ(),
+                judge.getX(), judge.getY(), judge.getZ(),
+                settings.maxDistance());
+        if (clamped == null) {
             return;
         }
 
-        double scale = maxDistance / Math.sqrt(distanceSq);
-        event.setTo(new Location(to.getWorld(),
-                judge.getX() + dx * scale,
-                judge.getY() + dy * scale,
-                judge.getZ() + dz * scale,
+        event.setTo(new Location(to.getWorld(), clamped[0], clamped[1], clamped[2],
                 to.getYaw(), to.getPitch()));
     }
 
@@ -191,6 +189,32 @@ public final class PlayerListener implements Listener {
             return;
         }
         if (dataManager.isHandcuffed(event.getPlayer().getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onItemPickup(EntityPickupItemEvent event) {
+        if (settings.allowInventory()) {
+            return;
+        }
+        // Закованный не должен пополнять инвентарь с земли: руки у него всё равно пусты.
+        if (event.getEntity() instanceof Player player
+                && dataManager.isHandcuffed(player.getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerInteractBlock(PlayerInteractEvent event) {
+        if (settings.allowInteract()) {
+            return;
+        }
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+        if (dataManager.isHandcuffed(event.getPlayer().getUniqueId())) {
+            // Двери, кнопки, рычаги, кровати, сундуки и прочие механизмы.
             event.setCancelled(true);
         }
     }
